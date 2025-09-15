@@ -1,18 +1,11 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ReactFlow, addEdge, Background, Controls } from '@xyflow/react';
-
-import UserQueryNode from '../components/WorkflowCanvas/nodes/UserQueryNode';
+import WorkflowCanvas from '../components/WorkflowCanvas';
 import ComponentLibraryPanel from '../components/ComponentLibraryPanel';
 import ComponentConfigPanel from '../components/ComponentConfigPanel';
 import ExecutionControls from '../components/ExecutionControls';
 import ChatInterface from '../components/ChatInterface';
 import { stackApi, workflowApi, documentApi } from '../services/api';
-
-// Custom node registration
-const nodeTypes = {
-  userQuery: UserQueryNode,
-};
 
 interface WorkflowBuilderProps {}
 
@@ -20,7 +13,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
   const { stackId } = useParams<{ stackId: string }>();
   const navigate = useNavigate();
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
-  const reactFlowInstance = useRef<any | null>(null);
 
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
@@ -33,7 +25,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
   const [stackName, setStackName] = useState('');
 
   // Load stack data on mount
-  React.useEffect(() => {
+  useEffect(() => {
     if (stackId) {
       loadStack();
     }
@@ -54,6 +46,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
     }
   };
 
+  // Drag & Drop
   const handleDragStart = (event: React.DragEvent, component: any) => {
     event.dataTransfer.setData(
       'application/reactflow',
@@ -65,21 +58,20 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-
       const component = JSON.parse(
         event.dataTransfer.getData('application/reactflow')
       );
 
-      if (reactFlowInstance.current) {
-        const bounds = reactFlowWrapper.current!.getBoundingClientRect();
-        const position = reactFlowInstance.current.screenToFlowPosition({
+      if (reactFlowWrapper.current) {
+        const bounds = reactFlowWrapper.current.getBoundingClientRect();
+        const position = {
           x: event.clientX - bounds.left,
           y: event.clientY - bounds.top,
-        });
+        };
 
         const newNode = {
           id: `${component.type}-${Date.now()}`,
-          type: component.type, // e.g. "userQuery"
+          type: component.type,
           position,
           data: {
             label: component.label,
@@ -90,7 +82,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
         setNodes((nds) => [...nds, newNode]);
       }
     },
-    [reactFlowInstance]
+    []
   );
 
   const getDefaultConfig = (type: string) => {
@@ -98,11 +90,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
       case 'userQuery':
         return { placeholder: 'Write your query here.' };
       case 'knowledgeBase':
-        return {
-          embedding_model: 'openai',
-          api_key: '',
-          files: [],
-        };
+        return { embedding_model: 'openai', api_key: '', files: [] };
       case 'llmEngine':
         return {
           model: 'openai',
@@ -119,42 +107,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
     }
   };
 
-  const handleNodesChange = useCallback((changes: any) => {
-    setNodes((nds) => {
-      const newNodes = nds.map((node) => {
-        const change = changes.find((c: any) => c.id === node.id);
-        if (change) {
-          if (change.type === 'select') {
-            setSelectedNode(change.selected ? node : null);
-          }
-          return { ...node, ...change };
-        }
-        return node;
-      });
-      return newNodes;
-    });
+  // Node/Edge handlers
+  const handleNodesChange = useCallback((newNodes: any[]) => {
+    setNodes(newNodes);
   }, []);
 
-  const handleEdgesChange = useCallback((changes: any) => {
-    setEdges((eds) => {
-      const newEdges = eds.map((edge) => {
-        const change = changes.find((c: any) => c.id === edge.id);
-        if (change) {
-          return { ...edge, ...change };
-        }
-        return edge;
-      });
-      return newEdges;
-    });
-  }, []);
-
-  const handleConnect = useCallback(
-    (params: any) => setEdges((eds) => addEdge(params, eds)),
-    []
-  );
-
-  const handleInit = useCallback((instance: any) => {
-    reactFlowInstance.current = instance;
+  const handleEdgesChange = useCallback((newEdges: any[]) => {
+    setEdges(newEdges);
   }, []);
 
   const handleUpdateNode = useCallback((nodeId: string, data: any) => {
@@ -176,10 +135,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
         const updatedFiles = [...(kbNode.data.config?.files || []), file.name];
         handleUpdateNode(kbNode.id, {
           ...kbNode.data,
-          config: {
-            ...kbNode.data.config,
-            files: updatedFiles,
-          },
+          config: { ...kbNode.data.config, files: updatedFiles },
         });
       }
     } catch (error) {
@@ -187,14 +143,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
     }
   };
 
-  const validateWorkflow = async () => {
+  // Workflow validation
+  const validateWorkflow = useCallback(async () => {
     try {
       const workflowConfig = { nodes, edges };
       const response = await workflowApi.validateWorkflow(workflowConfig);
-
       setIsValid(response.data.valid);
       setValidationErrors(response.data.errors || []);
-
       return response.data.valid;
     } catch (error) {
       console.error('Validation failed:', error);
@@ -202,7 +157,17 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
       setValidationErrors(['Validation failed']);
       return false;
     }
-  };
+  }, [nodes, edges]);
+
+  // Validate whenever nodes or edges change
+  useEffect(() => {
+    const validate = async () => {
+      if (nodes.length > 0 || edges.length > 0) {
+        await validateWorkflow();
+      }
+    };
+    validate();
+  }, [nodes, edges, validateWorkflow]);
 
   const handleBuildStack = async () => {
     setIsBuilding(true);
@@ -220,13 +185,10 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
 
   const handleSaveStack = async () => {
     if (!stackId) return;
-
     setIsSaving(true);
     try {
       const workflowConfig = { nodes, edges };
-      await stackApi.updateStack(parseInt(stackId), {
-        workflow_config: workflowConfig,
-      });
+      await stackApi.updateStack(parseInt(stackId), { workflow_config: workflowConfig });
       console.log('Stack saved successfully');
     } catch (error) {
       console.error('Save failed:', error);
@@ -236,16 +198,8 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
   };
 
   const handleChatWithStack = () => {
-    if (isValid) {
-      setIsChatOpen(true);
-    }
+    if (isValid) setIsChatOpen(true);
   };
-
-  React.useEffect(() => {
-    if (nodes.length > 0 || edges.length > 0) {
-      validateWorkflow();
-    }
-  }, [nodes, edges]);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -278,19 +232,12 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
 
         {/* Workflow Canvas */}
         <div className="flex-1 relative" ref={reactFlowWrapper}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
+          <WorkflowCanvas
+            initialNodes={nodes}
+            initialEdges={edges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
-            onConnect={handleConnect}
-            onInit={handleInit}
-            nodeTypes={nodeTypes}
-            fitView
-          >
-            <Background />
-            <Controls />
-          </ReactFlow>
+          />
 
           {/* Drop handling */}
           <div

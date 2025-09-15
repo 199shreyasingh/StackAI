@@ -1,4 +1,5 @@
-import React, { useCallback, useState, useRef } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   addEdge,
@@ -24,24 +25,33 @@ const nodeTypes = {
 };
 
 interface WorkflowCanvasProps {
+  initialNodes?: any[];
+  initialEdges?: any[];
   onNodesChange?: (nodes: any[]) => void;
   onEdgesChange?: (edges: any[]) => void;
   onConnect?: (connection: any) => void;
   onInit?: (instance: any) => void;
-  initialNodes?: any[];
-  initialEdges?: any[];
 }
 
 const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
+  initialNodes = [],
+  initialEdges = [],
   onNodesChange,
   onEdgesChange,
   onConnect: onConnectProp,
   onInit,
-  initialNodes = [],
-  initialEdges = [],
 }) => {
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(initialEdges);
+
+  // Sync parent state changes to internal state
+  useEffect(() => {
+    setNodes(initialNodes);
+  }, [initialNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges, setEdges]);
 
   const onConnect = useCallback(
     (params: any) => {
@@ -52,9 +62,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         animated: true,
       };
       setEdges((eds) => addEdge(newEdge, eds));
-      if (onConnectProp) {
-        onConnectProp(params);
-      }
+      if (onConnectProp) onConnectProp(params);
     },
     [setEdges, onConnectProp]
   );
@@ -62,9 +70,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const handleNodesChange = useCallback(
     (changes: any) => {
       onNodesChangeInternal(changes);
-      if (onNodesChange) {
-        onNodesChange(nodes);
-      }
+      if (onNodesChange) onNodesChange(nodes);
     },
     [onNodesChangeInternal, onNodesChange, nodes]
   );
@@ -72,18 +78,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const handleEdgesChange = useCallback(
     (changes: any) => {
       onEdgesChangeInternal(changes);
-      if (onEdgesChange) {
-        onEdgesChange(edges);
-      }
+      if (onEdgesChange) onEdgesChange(edges);
     },
     [onEdgesChangeInternal, onEdgesChange, edges]
   );
 
   const onInitCallback = useCallback(
     (instance: any) => {
-      if (onInit) {
-        onInit(instance);
-      }
+      if (onInit) onInit(instance);
     },
     [onInit]
   );
