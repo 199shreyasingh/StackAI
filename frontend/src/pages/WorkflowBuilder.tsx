@@ -16,13 +16,13 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = () => {
 
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
-  const [selectedNode, setSelectedNode] = useState<any | null>(null);
   const [isValid, setIsValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isBuilding, setIsBuilding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [stackName, setStackName] = useState('');
+  const selectedNode = null;
 
   // Load stack data on mount
   useEffect(() => {

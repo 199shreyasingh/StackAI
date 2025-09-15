@@ -66,6 +66,9 @@ export const chatApi = {
   // Get chat history
   getChatHistory: (stackId: number) =>
     api.get(`/stacks/${stackId}/chat-history`),
+
+  executeWorkflow: (stackId: number, input: string) =>
+    axios.post(`${API_BASE_URL}/chat/${stackId}/execute`, { input }),
 };
 
 export default api;

@@ -47,16 +47,6 @@ const MyStacks = () => {
     }
   };
 
-  const handleCreateStack = async (name: string, description: string) => {
-    try {
-      const response = await stackApi.createStack({ name, description });
-      const newStack = response.data;
-      setStacks(prev => [...prev, newStack]);
-      navigate(`/workflow/${newStack.id}`);
-    } catch (error) {
-      console.error('Failed to create stack:', error);
-    }
-  };
 
   const navPadding = isMd ? '15px 30px' : '10px 20px';
   const iconSize = isMd ? '32px' : '24px';
